@@ -837,14 +837,14 @@ CREATE OR REPLACE PACKAGE BODY pkg_loan_mgmt AS
     PROCEDURE apply_late_fees(
         p_as_of_date    IN  DATE DEFAULT SYSDATE,
         p_fees_applied  OUT NUMBER,
-        p_fees_total    OUT NUMBER
+        p_total_fees    OUT NUMBER
     ) IS
         v_late_fee  NUMBER;
         v_txn_id    NUMBER;
         v_fee_count NUMBER;
     BEGIN
         p_fees_applied := 0;
-        p_fees_total   := 0;
+        p_total_fees   := 0;
 
         FOR loan IN (
             SELECT l.loan_id, l.loan_number, l.monthly_payment, l.account_id,
@@ -873,7 +873,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_loan_mgmt AS
                         NULL, v_txn_id
                     );
                     p_fees_applied := p_fees_applied + 1;
-                    p_fees_total   := p_fees_total + v_late_fee;
+                    p_total_fees   := p_total_fees + v_late_fee;
                 END IF;
             EXCEPTION WHEN OTHERS THEN NULL;
             END;
