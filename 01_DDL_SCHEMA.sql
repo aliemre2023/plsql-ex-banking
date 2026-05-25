@@ -187,7 +187,7 @@ CREATE TABLE transactions (
     currency             VARCHAR2(3)   DEFAULT 'USD',
     description          VARCHAR2(500),
     reference_number     VARCHAR2(50)  UNIQUE,
-    channel              VARCHAR2(20)  DEFAULT 'BRANCH' CHECK (channel IN ('BRANCH','ATM','ONLINE','MOBILE','API')),
+    channel              VARCHAR2(20)  DEFAULT 'BRANCH' CHECK (channel IN ('BRANCH','ATM','ONLINE','MOBILE','API','SYSTEM')),
     status               VARCHAR2(20)  DEFAULT 'COMPLETED' CHECK (status IN ('PENDING','COMPLETED','FAILED','REVERSED')),
     transaction_date     TIMESTAMP     DEFAULT SYSTIMESTAMP,
     value_date           DATE          DEFAULT SYSDATE,
