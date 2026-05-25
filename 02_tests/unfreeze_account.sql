@@ -154,7 +154,7 @@ BEGIN
 
   -- Test: tc_10_freeze_then_unfreeze_cycle — freeze_account followed by pkg_account_mgmt.unfreeze_account restores ACTIVE status
   BEGIN
-    freeze_account(100000, 'Cycle test', 2000);
+    pkg_account_mgmt.freeze_account(100000, 'Cycle test', 2000);
     pkg_account_mgmt.unfreeze_account(100000, 2000);
     SELECT status INTO v_status_after FROM accounts WHERE account_id = 100000;
     ROLLBACK;
