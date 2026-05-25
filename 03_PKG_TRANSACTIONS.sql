@@ -224,7 +224,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
 
         -- Rule 2: Structuring detection (multiple deposits just under $10k)
         IF p_txn_type = 'DEPOSIT' THEN
-            v_daily_total := get_customer_daily_deposits(p_customer_id);
+            v_daily_total := pkg_transactions.get_customer_daily_deposits(p_customer_id);
             IF v_daily_total > 8000 AND v_daily_total < 10000 AND p_amount > 0 THEN
                 INSERT INTO fraud_alerts (account_id, customer_id, transaction_id,
                                            alert_type, severity, description)
@@ -372,7 +372,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
         -- Calculate average daily balance using transactions
         WITH daily_balances AS (
             SELECT d.dt,
-                   (SELECT NVL(MAX(balance_after), 0)
+                   (SELECT balance_after
                     FROM   transactions t2
                     WHERE  t2.account_id = p_account_id
                     AND    TRUNC(t2.transaction_date) <= d.dt
@@ -729,11 +729,9 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
         END IF;
 
         -- Mark original as reversed
-        UPDATE transactions
-        SET    status     = 'REVERSED',
-               updated_at = SYSTIMESTAMP
-        WHERE  transaction_id = p_transaction_id;  -- Note: updated_at doesn't exist, using placeholder
-        -- (in real schema add updated_at to transactions)
+         UPDATE transactions
+         SET    status = 'REVERSED'
+         WHERE  transaction_id = p_transaction_id;
 
         -- Insert reversal record
         INSERT INTO transactions (
@@ -770,17 +768,23 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
         v_ref            VARCHAR2(50);
     BEGIN
         -- Determine fee amount
-        v_fee_amount := CASE
-            WHEN p_amount IS NOT NULL THEN p_amount
-            WHEN p_fee_type = 'OVERDRAFT_FEE'    THEN c_overdraft_fee
-            WHEN p_fee_type = 'NSF_FEE'          THEN c_nsf_fee
-            WHEN p_fee_type = 'WIRE_FEE'         THEN c_wire_fee
-            WHEN p_fee_type = 'ATM_FEE'          THEN c_atm_fee
-            ELSE
-                (SELECT NVL(monthly_fee, 0) FROM account_types a
-                 JOIN accounts acc ON a.type_code = acc.account_type
-                 WHERE acc.account_id = p_account_id)
-        END;
+        IF p_amount IS NOT NULL THEN
+            v_fee_amount := p_amount;
+        ELSIF p_fee_type = 'OVERDRAFT_FEE' THEN
+            v_fee_amount := c_overdraft_fee;
+        ELSIF p_fee_type = 'NSF_FEE' THEN
+            v_fee_amount := c_nsf_fee;
+        ELSIF p_fee_type = 'WIRE_FEE' THEN
+            v_fee_amount := c_wire_fee;
+        ELSIF p_fee_type = 'ATM_FEE' THEN
+            v_fee_amount := c_atm_fee;
+        ELSE
+            SELECT NVL(monthly_fee, 0)
+            INTO   v_fee_amount
+            FROM   account_types a
+            JOIN   accounts acc ON a.type_code = acc.account_type
+            WHERE  acc.account_id = p_account_id;
+        END IF;
 
         IF NVL(v_fee_amount, 0) <= 0 THEN
             RETURN;  -- No fee to apply
@@ -791,8 +795,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
         -- Post fee (allow even if balance goes negative for mandatory fees)
         UPDATE accounts
         SET    balance           = balance - v_fee_amount,
-               available_balance = available_balance - v_fee_amount,
-               updated_at        = SYSTIMESTAMP
+             available_balance = available_balance - v_fee_amount
         WHERE  account_id = p_account_id;
 
         v_balance_after := v_balance_before - v_fee_amount;
@@ -904,8 +907,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_transactions AS
 
         -- Update accrued interest on account
         UPDATE accounts
-        SET    interest_accrued = NVL(interest_accrued, 0) + v_gross_interest,
-               updated_at       = SYSTIMESTAMP
+         SET    interest_accrued = NVL(interest_accrued, 0) + v_gross_interest
         WHERE  account_id = p_account_id;
 
         INSERT INTO transactions (
